@@ -975,8 +975,9 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
             UIEdgeInsets fillPadding = [[attributes objectForKey:kTTTBackgroundFillPaddingAttributeName] UIEdgeInsetsValue];
             CGFloat cornerRadius = [[attributes objectForKey:kTTTBackgroundCornerRadiusAttributeName] floatValue];
             CGFloat lineWidth = [[attributes objectForKey:kTTTBackgroundLineWidthAttributeName] floatValue];
+            NSTextAttachment *textAttachment = [attributes objectForKey:NSAttachmentAttributeName];
 
-            if (strokeColor || fillColor) {
+            if (strokeColor || fillColor || textAttachment) {
                 CGRect runBounds = CGRectZero;
                 CGFloat runAscent = 0.0f;
                 CGFloat runDescent = 0.0f;
@@ -1039,6 +1040,13 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                     CGContextSetStrokeColorWithColor(c, strokeColor);
                     CGContextAddPath(c, path);
                     CGContextStrokePath(c);
+                }
+                
+                if (textAttachment && textAttachment.image) {
+                    UIImage *image = textAttachment.image;
+                    CGFloat baselineOffset = [[attributes objectForKey:NSBaselineOffsetAttributeName] floatValue];
+                    CGRect rect = CGRectMake(runBounds.origin.x, runBounds.origin.y - baselineOffset, image.size.width, image.size.height);
+                    [image drawInRect:rect];
                 }
             }
         }
