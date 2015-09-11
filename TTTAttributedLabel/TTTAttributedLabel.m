@@ -1046,7 +1046,7 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                     UIImage *image = textAttachment.image;
                     CGFloat baselineOffset = [[attributes objectForKey:NSBaselineOffsetAttributeName] floatValue];
                     CGRect rect = CGRectMake(runBounds.origin.x, runBounds.origin.y - baselineOffset, image.size.width, image.size.height);
-                    [image drawInRect:rect];
+                    CGContextDrawImage(c, rect, image.CGImage);
                 }
             }
         }
