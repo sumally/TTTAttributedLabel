@@ -1006,6 +1006,11 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                         break;
                 }
 
+                // https://github.com/TTTAttributedLabel/TTTAttributedLabel/issues/504
+                CGFloat flushFactor = TTTFlushFactorForTextAlignment(self.textAlignment);
+                CGFloat penOffset = (CGFloat)CTLineGetPenOffsetForFlush((__bridge CTLineRef)line, flushFactor, rect.size.width);
+                xOffset += penOffset;
+
                 runBounds.origin.x = origins[lineIndex].x + rect.origin.x + xOffset - fillPadding.left - rect.origin.x;
                 
                 if (fillColor) {
