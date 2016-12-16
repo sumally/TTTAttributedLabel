@@ -978,10 +978,13 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
     CTFrameGetLineOrigins(frame, CFRangeMake(0, 0), origins);
 
     CFIndex lineIndex = 0;
+    
+    CGFloat heightCache = 0;
     for (id line in lines) {
         CGFloat ascent = 0.0f, descent = 0.0f, leading = 0.0f;
         CGFloat width = (CGFloat)CTLineGetTypographicBounds((__bridge CTLineRef)line, &ascent, &descent, &leading) ;
 
+        CGFloat yCache = 0;
         for (id glyphRun in (__bridge NSArray *)CTLineGetGlyphRuns((__bridge CTLineRef)line)) {
             NSDictionary *attributes = (__bridge NSDictionary *)CTRunGetAttributes((__bridge CTRunRef) glyphRun);
             CGColorRef strokeColor = (__bridge CGColorRef)[attributes objectForKey:kTTTBackgroundStrokeColorAttributeName];
@@ -989,14 +992,25 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
             UIEdgeInsets fillPadding = [[attributes objectForKey:kTTTBackgroundFillPaddingAttributeName] UIEdgeInsetsValue];
             CGFloat cornerRadius = [[attributes objectForKey:kTTTBackgroundCornerRadiusAttributeName] floatValue];
             CGFloat lineWidth = [[attributes objectForKey:kTTTBackgroundLineWidthAttributeName] floatValue];
+            NSTextAttachment *textAttachment = [attributes objectForKey:NSAttachmentAttributeName];
 
-            if (strokeColor || fillColor) {
+            if (strokeColor || fillColor || textAttachment) {
                 CGRect runBounds = CGRectZero;
                 CGFloat runAscent = 0.0f;
                 CGFloat runDescent = 0.0f;
 
                 runBounds.size.width = (CGFloat)CTRunGetTypographicBounds((__bridge CTRunRef)glyphRun, CFRangeMake(0, 0), &runAscent, &runDescent, NULL) + fillPadding.left + fillPadding.right;
-                runBounds.size.height = runAscent + runDescent + fillPadding.top + fillPadding.bottom;
+                
+                if (fillColor) {
+                    if (heightCache == 0) {
+                        runBounds.size.height = runAscent + runDescent + fillPadding.top + fillPadding.bottom;
+                        heightCache = runBounds.size.height;
+                    } else {
+                        runBounds.size.height = heightCache;
+                    }
+                } else {
+                    runBounds.size.height = runAscent + runDescent + fillPadding.top + fillPadding.bottom;
+                }
 
                 CGFloat xOffset = 0.0f;
                 CFRange glyphRange = CTRunGetStringRange((__bridge CTRunRef)glyphRun);
@@ -1009,9 +1023,25 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                         break;
                 }
 
+                // https://github.com/TTTAttributedLabel/TTTAttributedLabel/issues/504
+                CGFloat flushFactor = TTTFlushFactorForTextAlignment(self.textAlignment);
+                CGFloat penOffset = (CGFloat)CTLineGetPenOffsetForFlush((__bridge CTLineRef)line, flushFactor, rect.size.width);
+                xOffset += penOffset;
+
                 runBounds.origin.x = origins[lineIndex].x + rect.origin.x + xOffset - fillPadding.left - rect.origin.x;
-                runBounds.origin.y = origins[lineIndex].y + rect.origin.y - fillPadding.bottom - rect.origin.y;
-                runBounds.origin.y -= runDescent;
+                
+                if (fillColor) {
+                    if (yCache == 0) {
+                        runBounds.origin.y = origins[lineIndex].y + rect.origin.y - fillPadding.bottom - rect.origin.y;
+                        runBounds.origin.y -= runDescent;
+                        yCache = runBounds.origin.y;
+                    } else {
+                        runBounds.origin.y = yCache;
+                    }
+                } else {
+                    runBounds.origin.y = origins[lineIndex].y + rect.origin.y - fillPadding.bottom - rect.origin.y;
+                    runBounds.origin.y -= runDescent;
+                }
 
                 // Don't draw higlightedLinkBackground too far to the right
                 if (CGRectGetWidth(runBounds) > width) {
@@ -1032,6 +1062,13 @@ static inline CGSize CTFramesetterSuggestFrameSizeForAttributedStringWithConstra
                     CGContextSetStrokeColorWithColor(c, strokeColor);
                     CGContextAddPath(c, path);
                     CGContextStrokePath(c);
+                }
+                
+                if (textAttachment && textAttachment.image) {
+                    UIImage *image = textAttachment.image;
+                    CGFloat baselineOffset = [[attributes objectForKey:NSBaselineOffsetAttributeName] floatValue];
+                    CGRect rect = CGRectMake(runBounds.origin.x, runBounds.origin.y - baselineOffset, image.size.width, image.size.height);
+                    CGContextDrawImage(c, rect, image.CGImage);
                 }
             }
         }
